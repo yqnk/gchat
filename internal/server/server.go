@@ -37,16 +37,22 @@ func (server *Server) Run() {
 			server: server,
 		}
 		server.clients = append(server.clients, client)
-		fmt.Printf("added 1 client (%v)\n", client)
 
 		go client.handleRequest()
 	}
 }
 
 func (server *Server) Broadcast(message string, sender *Client) {
+	// jsonData := m.Deserialize(message)
+
 	for _, client := range server.clients {
-		if client != sender {
-			client.conn.Write([]byte(message))
-		}
+		client.conn.Write([]byte(message))
+		// if jsonData.MType == m.SystemMessage {
+		// 	client.conn.Write([]byte(jsonData.Body))
+		// } else {
+		// 	if client != sender {
+		// 		client.conn.Write([]byte(jsonData.Body))
+		// 	}
+		// }
 	}
 }

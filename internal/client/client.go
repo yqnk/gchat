@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+
+	m "github.com/yqnk/gchat/pkg/message"
 )
 
 type Client struct {
@@ -26,6 +28,13 @@ func New(username string, address string) *Client {
 
 func (client *Client) Run() {
 	defer client.conn.Close()
+
+	joinBody := fmt.Sprintf("%s joined the room!\n", client.username)
+	joinMessage := m.New(m.SystemMessage, client.username, joinBody)
+	_, err := client.conn.Write([]byte(m.Serialize(*joinMessage) + "\n"))
+	if err != nil {
+		return
+	}
 
 	go client.Receive()
 
