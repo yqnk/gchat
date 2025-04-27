@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"sync"
+
+	m "github.com/yqnk/gchat/pkg/message"
 )
 
 type Server struct {
@@ -16,8 +17,6 @@ type Server struct {
 func New(host string, port string) *Server {
 	return &Server{host: host, port: port}
 }
-
-var wg = sync.WaitGroup{}
 
 func (server *Server) Run() {
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", server.host, server.port))
@@ -43,16 +42,21 @@ func (server *Server) Run() {
 }
 
 func (server *Server) Broadcast(message string, sender *Client) {
-	// jsonData := m.Deserialize(message)
+	jsonData := m.Deserialize(message)
+	if jsonData.MType == m.SystemMessage {
+		if jsonData.Body == "/quit" {
+			// TODO: find a way to remove the corresponding client from the server's `clients` list
+		}
+
+		fmt.Printf("[SYSTEM by %s] %s\n", jsonData.Author, jsonData.Body)
+	}
 
 	for _, client := range server.clients {
-		client.conn.Write([]byte(message))
+		client.conn.Write([]byte(jsonData.Body))
 		// if jsonData.MType == m.SystemMessage {
 		// 	client.conn.Write([]byte(jsonData.Body))
 		// } else {
-		// 	if client != sender {
-		// 		client.conn.Write([]byte(jsonData.Body))
-		// 	}
+		// 	client.conn.Write([]byte(jsonData.Author + " > " + jsonData.Body))
 		// }
 	}
 }

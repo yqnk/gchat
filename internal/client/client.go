@@ -27,9 +27,9 @@ func New(username string, address string) *Client {
 }
 
 func (client *Client) Run() {
-	defer client.conn.Close()
+	defer client.Disconnect()
 
-	joinBody := fmt.Sprintf("%s joined the room!\n", client.username)
+	joinBody := fmt.Sprintf("%s joined the room!", client.username)
 	joinMessage := m.New(m.SystemMessage, client.username, joinBody)
 	_, err := client.conn.Write([]byte(m.Serialize(*joinMessage) + "\n"))
 	if err != nil {
@@ -40,7 +40,19 @@ func (client *Client) Run() {
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
-		_, err := client.conn.Write([]byte(scanner.Text() + "\n"))
+		if len(scanner.Text()) > 140 {
+			// TODO: show where the limit is, just like Rust's pretty errors
+			// e.g. : ... this is too long ...
+			// 140th character ---^
+			fmt.Print("\n\t--- Max 140 characters ---\n\n")
+			continue
+		}
+
+		// TODO: handle commands
+		// TODO: handle private message (like commands ?)
+		fmt.Println("has message")
+		message := m.New(m.PublicMessage, client.username, scanner.Text()+"\n")
+		_, err := client.conn.Write([]byte(m.Serialize(*message)))
 		if err != nil {
 			panic(err)
 		}
@@ -57,5 +69,16 @@ func (client *Client) Receive() {
 		}
 
 		fmt.Print(message)
+	}
+}
+
+func (client *Client) Disconnect() {
+	defer client.conn.Close()
+
+	disconnectMessage := m.New(m.CommandMessage, client.username, "/quit")
+	_, err := client.conn.Write([]byte(m.Serialize(*disconnectMessage) + "\n"))
+
+	if err != nil {
+		panic(err)
 	}
 }
