@@ -4,9 +4,10 @@ import (
 	"bufio"
 	"net"
 
-	m "github.com/yqnk/gchat/pkg/message"
+	m "github.com/yqnk/gchat/pkg/message
 )
 
+// might be wise to merge this with with the client/client.go, in order to simplify command handling
 type Client struct {
 	conn   net.Conn
 	server *Server
