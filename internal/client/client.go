@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	m "github.com/yqnk/gchat/pkg/message"
 )
@@ -33,7 +34,6 @@ func (client *Client) Run() {
 	joinMessage := m.New(m.SystemMessage, client.username, joinBody)
 	_, err := client.conn.Write([]byte(m.Serialize(*joinMessage) + "\n"))
 	if err != nil {
-		fmt.Println("in run first err")
 		return
 	}
 
@@ -51,10 +51,20 @@ func (client *Client) Run() {
 
 		// TODO: handle commands
 		// TODO: handle private message (like commands ?)
-		message := m.New(m.PublicMessage, client.username, scanner.Text())
-		_, err := client.conn.Write([]byte(m.Serialize(*message) + "\n"))
-		if err != nil {
-			panic(err)
+
+		// avoid empty messages
+		if scanner.Text() != "" {
+			var message *m.Message
+			if strings.HasPrefix(scanner.Text(), "/") {
+				message = m.New(m.CommandMessage, client.username, scanner.Text())
+			} else {
+				message = m.New(m.PublicMessage, client.username, scanner.Text())
+			}
+
+			_, err := client.conn.Write([]byte(m.Serialize(*message) + "\n"))
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 }
@@ -68,7 +78,13 @@ func (client *Client) Receive() {
 			return
 		}
 
-		fmt.Print(message)
+		jsonData := m.Deserialize(message)
+
+		if jsonData.MType == m.SystemMessage {
+			fmt.Println(jsonData.Body)
+		} else {
+			fmt.Printf("%s: %s\n", jsonData.Author, jsonData.Body)
+		}
 	}
 }
 

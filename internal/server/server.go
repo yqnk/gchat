@@ -42,24 +42,32 @@ func (server *Server) Run() {
 }
 
 func (server *Server) Broadcast(message string, sender *Client) {
-	jsonData := m.Deserialize(message)
-	if jsonData.MType == m.SystemMessage {
-		if jsonData.Body == "/quit" {
-			// TODO: find a way to remove the corresponding client from the server's `clients` list
-			// hint: use a map, and mutex rwlock immediately
-		}
-
-		// maybe use a command instead of a system message, like /join
-		fmt.Printf("[SYSTEM by %s] %s", jsonData.Author, jsonData.Body)
-	}
-
 	for _, client := range server.clients {
-		if jsonData.MType == m.SystemMessage {
-			client.conn.Write([]byte(jsonData.Body))
-		} else {
-			if client != sender {
-				client.conn.Write([]byte(jsonData.Author + " > " + jsonData.Body + "\n"))
-			}
+		// if jsonData.MType == m.SystemMessage {
+		// 	client.conn.Write([]byte(jsonData.Body))
+		// } else {
+		// 	if client != sender {
+		// 		client.conn.Write([]byte(jsonData.Author + " > " + jsonData.Body + "\n"))
+		// 	}
+		// }
+		if client != sender {
+			client.conn.Write([]byte(message))
 		}
+	}
+}
+
+func (server *Server) ExecuteCommand(message string, sender *Client) {
+	jsonData := m.Deserialize(message)
+
+	switch jsonData.Body {
+	case "/quit":
+		fmt.Printf("[COMMAND BY %s] %s\n", jsonData.Author, jsonData.Body)
+
+		message := m.New(m.SystemMessage, jsonData.Author, fmt.Sprintf("%s left the chat!\n", jsonData.Author))
+		server.Broadcast(m.Serialize(*message), sender)
+
+		sender.conn.Close()
+	default:
+		return
 	}
 }

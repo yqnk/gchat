@@ -3,6 +3,8 @@ package server
 import (
 	"bufio"
 	"net"
+
+	m "github.com/yqnk/gchat/pkg/message"
 )
 
 type Client struct {
@@ -19,6 +21,12 @@ func (client *Client) handleRequest() {
 			return
 		}
 
-		client.server.Broadcast(message, client)
+		jsonData := m.Deserialize(message)
+
+		if jsonData.MType == m.CommandMessage {
+			client.server.ExecuteCommand(message, client)
+		} else {
+			client.server.Broadcast(message, client)
+		}
 	}
 }
