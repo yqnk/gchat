@@ -46,17 +46,20 @@ func (server *Server) Broadcast(message string, sender *Client) {
 	if jsonData.MType == m.SystemMessage {
 		if jsonData.Body == "/quit" {
 			// TODO: find a way to remove the corresponding client from the server's `clients` list
+			// hint: use a map, and mutex rwlock immediately
 		}
 
-		fmt.Printf("[SYSTEM by %s] %s\n", jsonData.Author, jsonData.Body)
+		// maybe use a command instead of a system message, like /join
+		fmt.Printf("[SYSTEM by %s] %s", jsonData.Author, jsonData.Body)
 	}
 
 	for _, client := range server.clients {
-		client.conn.Write([]byte(jsonData.Body))
-		// if jsonData.MType == m.SystemMessage {
-		// 	client.conn.Write([]byte(jsonData.Body))
-		// } else {
-		// 	client.conn.Write([]byte(jsonData.Author + " > " + jsonData.Body))
-		// }
+		if jsonData.MType == m.SystemMessage {
+			client.conn.Write([]byte(jsonData.Body))
+		} else {
+			if client != sender {
+				client.conn.Write([]byte(jsonData.Author + " > " + jsonData.Body + "\n"))
+			}
+		}
 	}
 }

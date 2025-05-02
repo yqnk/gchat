@@ -7,7 +7,6 @@ type MessageType int
 const (
 	SystemMessage  MessageType = iota // broadcasted towards every client
 	PublicMessage                     // broadcasted towards everyone but the sender
-	PrivateMessage                    // broadcasted towards a single person /!\ UNIMPLEMENTED
 	CommandMessage                    // broadcasted towards the sender only
 )
 

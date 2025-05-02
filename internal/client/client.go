@@ -29,10 +29,11 @@ func New(username string, address string) *Client {
 func (client *Client) Run() {
 	defer client.Disconnect()
 
-	joinBody := fmt.Sprintf("%s joined the room!", client.username)
+	joinBody := fmt.Sprintf("%s joined the room!\n", client.username)
 	joinMessage := m.New(m.SystemMessage, client.username, joinBody)
 	_, err := client.conn.Write([]byte(m.Serialize(*joinMessage) + "\n"))
 	if err != nil {
+		fmt.Println("in run first err")
 		return
 	}
 
@@ -50,9 +51,8 @@ func (client *Client) Run() {
 
 		// TODO: handle commands
 		// TODO: handle private message (like commands ?)
-		fmt.Println("has message")
-		message := m.New(m.PublicMessage, client.username, scanner.Text()+"\n")
-		_, err := client.conn.Write([]byte(m.Serialize(*message)))
+		message := m.New(m.PublicMessage, client.username, scanner.Text())
+		_, err := client.conn.Write([]byte(m.Serialize(*message) + "\n"))
 		if err != nil {
 			panic(err)
 		}
