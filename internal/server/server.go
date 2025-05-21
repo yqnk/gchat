@@ -94,9 +94,25 @@ func (s *Server) broadcast(msg message.Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for conn := range s.clients {
+		s.handleMessage(msg, data, conn)
+	}
+}
+
+func (s *Server) handleMessage(msg message.Message, data []byte, conn net.Conn) {
+	log.Println(msg.Type)
+	switch msg.Type {
+	case "private_message":
+		receiver := msg.Args[0]
+		log.Println("[I] DM to " + receiver)
+		if s.clients[conn] == receiver {
+			if _, err := conn.Write(data); err != nil {
+				log.Printf("[W] Failed to send %s: %v", s.clients[conn], err)
+			}
+		}
+	default: // "message"
 		if msg.Sender != s.clients[conn] {
 			if _, err := conn.Write(data); err != nil {
-				log.Printf("[W] Failed to send to %s: %v", s.clients[conn], err)
+				log.Printf("[W] Failed to send %s: %v", s.clients[conn], err)
 			}
 		}
 	}

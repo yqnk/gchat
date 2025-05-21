@@ -188,6 +188,9 @@ func (m model) sendLeaveMessage() {
 
 func (m *model) handleMessage(mes message.Message) {
 	switch mes.Type {
+	case "private_message":
+		var style lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(mes.SenderStyle)).Italic(true)
+		m.messages = append(m.messages, style.Render(mes.Sender+" whispers to you: ")+mes.Body)
 	default: // message
 		var style lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(mes.SenderStyle))
 		m.messages = append(m.messages, style.Render(mes.Sender+": ")+mes.Body)
@@ -199,12 +202,28 @@ func isCommand(text string) bool {
 }
 
 func (m *model) handleCommand(cmd string, args []string) {
+
 	switch cmd {
 	case "color":
 		if len(args) > 1 { // TODO: add check if the arg has the correct format
-			m.messages = append(m.messages, "`quit` command takes only one argument.")
+			m.messages = append(m.messages, "`color` command takes only one argument.")
+		} else {
+			m.stringStyle = args[0]
+			var style lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(m.stringStyle))
+			m.messages = append(m.messages, "`color` changed to "+style.Render(m.stringStyle))
 		}
-		m.stringStyle = args[0]
+	case "w", "whisper", "msg":
+		// TODO: check args
+		text := args[1:]
+		msg := &message.Message{
+			Type:        "private_message",
+			Sender:      m.username,
+			SenderStyle: m.stringStyle,
+			Body:        strings.Join(text, " "),
+			Command:     cmd,
+			Args:        args,
+		}
+		m.conn.Write([]byte(serialize(msg) + "\n"))
 	default: // unknown command
 		m.messages = append(m.messages, "Unknown command: "+cmd)
 	}
