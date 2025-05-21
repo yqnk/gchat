@@ -84,7 +84,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	s.mu.Unlock()
 
 	log.Printf("[I] Client disconnected: %s (%s)", addr, username)
-	s.broadcast(message.Message{Type: "message", Sender: "server", Body: fmt.Sprintf("%s left the chat :(", addr)})
+	s.broadcast(message.Message{Type: "message", Sender: "server", Body: fmt.Sprintf("%s left the chat :(", username)})
 }
 
 func (s *Server) broadcast(msg message.Message) {

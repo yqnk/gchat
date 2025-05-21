@@ -11,7 +11,8 @@ import (
 func main() {
 	host := flag.String("host", "localhost", "IP address of the server")
 	port := flag.String("port", "3000", "Server port")
-	username := flag.String("name", "unknown", "User name")
+	// add a randomly generated uuid as default username to allow the absence of --name ?
+	username := flag.String("name", "", "User name")
 
 	flag.Parse()
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
 	"net"
 	"strings"
 
@@ -16,13 +17,15 @@ import (
 
 const gap = "\n\n"
 
+// NOTE: senderStyle is not required if we dont want to add BackgroundStyles or any other kind of specific styles
 type model struct {
 	conn        net.Conn
 	username    string
 	viewport    viewport.Model
 	textarea    textarea.Model
 	messages    []string
-	senderStyle lipgloss.Style
+	stringStyle string
+	// senderStyle lipgloss.Style
 	receiveChan chan string
 	width       int
 	height      int
@@ -35,10 +38,10 @@ func New(username, address string) {
 		panic(err)
 	}
 
-	join := &message.Message{Type: "join", Sender: username, Body: ""}
-	conn.Write([]byte(serialize(join) + "\n"))
-
 	m := initialModel(conn, username)
+
+	join := &message.Message{Type: "join", Sender: username, SenderStyle: m.stringStyle, Body: ""}
+	conn.Write([]byte(serialize(join) + "\n"))
 
 	go receiveLoop(conn, m.receiveChan)
 
@@ -61,13 +64,16 @@ func initialModel(conn net.Conn, username string) model {
 	vp := viewport.New(40, 10)
 	vp.SetContent("Welcome to the chat room!\nType a message and press Enter to send.")
 
+	randColor := fmt.Sprintf("#%.2x%.2x%.2x", rand.IntN(256), rand.IntN(256), rand.IntN(256))
+
 	return model{
 		conn:        conn,
 		username:    username,
 		textarea:    ta,
 		viewport:    vp,
 		messages:    []string{},
-		senderStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
+		stringStyle: randColor,
+		// senderStyle: lipgloss.NewStyle().Foreground(lipgloss.Color(randColor)),
 		receiveChan: make(chan string),
 		initialized: false,
 	}
@@ -126,16 +132,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(text) > 140 {
 				m.messages = append(m.messages, "-- Max 140 characters --")
 			} else {
-				msg := &message.Message{
-					Type:   "message",
-					Sender: m.username,
-					Body:   text,
+				if isCommand(text) {
+					line := strings.Split(text[1:], " ")
+					m.handleCommand(line[0], line[1:])
+				} else {
+					msg := &message.Message{
+						Type:        "message",
+						Sender:      m.username,
+						SenderStyle: m.stringStyle,
+						Body:        text,
+					}
+					m.conn.Write([]byte(serialize(msg) + "\n"))
+
+					var style lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(m.stringStyle))
+					m.messages = append(m.messages, style.Render("You: ")+text)
 				}
-				m.conn.Write([]byte(serialize(msg) + "\n"))
-				m.messages = append(m.messages, m.senderStyle.Render("You: ")+text)
+				m.textarea.Reset()
+				m.updateViewport()
 			}
-			m.textarea.Reset()
-			m.updateViewport()
 		}
 
 	case string:
@@ -145,8 +159,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			panic(err)
 		}
 
-		m.messages = append(m.messages, m.senderStyle.Render(mes.Sender+": ")+mes.Body)
+		m.handleMessage(mes)
 		m.updateViewport()
+
 		return m, m.waitForMessage()
 	}
 
@@ -167,10 +182,35 @@ func (m model) View() string {
 }
 
 func (m model) sendLeaveMessage() {
-	leave := &message.Message{Type: "leave", Sender: m.username, Body: ""}
+	leave := &message.Message{Type: "leave", Sender: m.username, SenderStyle: m.stringStyle, Body: ""}
 	m.conn.Write([]byte(serialize(leave) + "\n"))
 }
 
+func (m *model) handleMessage(mes message.Message) {
+	switch mes.Type {
+	default: // message
+		var style lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(mes.SenderStyle))
+		m.messages = append(m.messages, style.Render(mes.Sender+": ")+mes.Body)
+	}
+}
+
+func isCommand(text string) bool {
+	return text[0] == 47 // 47 = "/"
+}
+
+func (m *model) handleCommand(cmd string, args []string) {
+	switch cmd {
+	case "color":
+		if len(args) > 1 { // TODO: add check if the arg has the correct format
+			m.messages = append(m.messages, "`quit` command takes only one argument.")
+		}
+		m.stringStyle = args[0]
+	default: // unknown command
+		m.messages = append(m.messages, "Unknown command: "+cmd)
+	}
+}
+
+// this should obviously be moved to pkg/message
 func serialize(msg *message.Message) string {
 	data, err := json.Marshal(msg)
 	if err != nil {
