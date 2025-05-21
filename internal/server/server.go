@@ -1,73 +1,103 @@
 package server
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"sync"
 
-	m "github.com/yqnk/gchat/pkg/message"
+	"github.com/yqnk/gchat/pkg/message"
 )
 
 type Server struct {
-	host    string
-	port    string
-	clients []*Client
+	Addr    string
+	clients map[net.Conn]string
+	mu      sync.Mutex
 }
 
-func New(host string, port string) *Server {
-	return &Server{host: host, port: port}
-}
-
-func (server *Server) Run() {
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", server.host, server.port))
-	if err != nil {
-		panic(err)
+func New(addr string) *Server {
+	return &Server{
+		Addr:    addr,
+		clients: make(map[net.Conn]string),
 	}
-	defer listener.Close()
+}
+
+func (s *Server) Start() error {
+	listener, err := net.Listen("tcp", s.Addr)
+	if err != nil {
+		return fmt.Errorf("[E] Listener error: %w", err)
+	}
+	log.Printf("[I] Server started at %s...", s.Addr)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("[W] Connection error: %v", err)
+			continue
 		}
 
-		client := &Client{
-			conn:   conn,
-			server: server,
-		}
-		server.clients = append(server.clients, client)
-
-		go client.handleRequest()
+		go s.handleConnection(conn)
 	}
 }
 
-func (server *Server) Broadcast(message string, sender *Client) {
-	for _, client := range server.clients {
-		// if jsonData.MType == m.SystemMessage {
-		// 	client.conn.Write([]byte(jsonData.Body))
-		// } else {
-		// 	if client != sender {
-		// 		client.conn.Write([]byte(jsonData.Author + " > " + jsonData.Body + "\n"))
-		// 	}
-		// }
-		if client != sender {
-			client.conn.Write([]byte(message))
-		}
-	}
-}
+func (s *Server) handleConnection(conn net.Conn) {
+	defer conn.Close()
 
-func (server *Server) ExecuteCommand(message string, sender *Client) {
-	jsonData := m.Deserialize(message)
+	// save the client address
+	addr := conn.RemoteAddr().String()
+	scanner := bufio.NewScanner(conn)
 
-	switch jsonData.Body {
-	case "/quit":
-		fmt.Printf("[COMMAND BY %s] %s\n", jsonData.Author, jsonData.Body)
-
-		message := m.New(m.SystemMessage, jsonData.Author, fmt.Sprintf("%s left the chat!\n", jsonData.Author))
-		server.Broadcast(m.Serialize(*message), sender)
-
-		sender.conn.Close()
-	default:
+	if !scanner.Scan() {
+		log.Printf("[W] No initial message from %s", addr)
 		return
+	}
+
+	var initMessage message.Message
+	if err := json.Unmarshal(scanner.Bytes(), &initMessage); err != nil || initMessage.Type != "join" {
+		log.Printf("[W] Invalid join message from %s (message type: %s): %v", addr, initMessage.Type, err)
+		return
+	}
+
+	username := initMessage.Sender
+
+	s.mu.Lock()
+	s.clients[conn] = username
+	s.mu.Unlock()
+
+	log.Printf("[I] Client connected: %s (%s)", addr, username)
+	s.broadcast(message.Message{Type: "message", Sender: "server", Body: fmt.Sprintf("%s joined the chat :)", username)})
+
+	for scanner.Scan() {
+		var msg message.Message
+		if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
+			log.Printf("[W] JSON Error from %s: %v", addr, err)
+		}
+
+		log.Printf("[%s] %s", msg.Sender, msg.Body)
+		s.broadcast(msg)
+	}
+
+	s.mu.Lock()
+	delete(s.clients, conn)
+	s.mu.Unlock()
+
+	log.Printf("[I] Client disconnected: %s (%s)", addr, username)
+	s.broadcast(message.Message{Type: "message", Sender: "server", Body: fmt.Sprintf("%s left the chat :(", addr)})
+}
+
+func (s *Server) broadcast(msg message.Message) {
+	data, _ := json.Marshal(msg)
+	data = append(data, '\n')
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for conn := range s.clients {
+		if msg.Sender != s.clients[conn] {
+			if _, err := conn.Write(data); err != nil {
+				log.Printf("[W] Failed to send to %s: %v", s.clients[conn], err)
+			}
+		}
 	}
 }

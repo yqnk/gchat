@@ -2,21 +2,23 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"log"
+	"os"
 
-	s "github.com/yqnk/gchat/internal/server"
+	"github.com/yqnk/gchat/internal/server"
 )
 
 func main() {
-	var host string
-	flag.StringVar(&host, "host", "localhost", "a string")
-
-	var port string
-	flag.StringVar(&port, "port", "3333", "a string")
+	host := flag.String("host", "0.0.0.0", "IP address of the server")
+	port := flag.String("port", "3000", "Server port")
 
 	flag.Parse()
 
-	server := s.New(host, port)
-	fmt.Printf("Starting on %s:%s...\n", host, port)
-	server.Run()
+	addr := *host + ":" + *port
+
+	s := server.New(addr)
+	if err := s.Start(); err != nil {
+		log.Println("Server error: ", err)
+		os.Exit(1)
+	}
 }
